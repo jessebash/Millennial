@@ -1,0 +1,170 @@
+---
+title: "model_AfSIS"
+output: html_document
+date: "2025-07-17"
+---
+
+##Load libraries
+```{r}
+library(FME)
+library(here)
+library(dplyr) 
+library(tidyr)
+library(ggplot2)
+library(sf)
+library(rnaturalearth)
+library(rnaturalearthdata)
+library(viridis)
+```
+
+##Load files needed from the directory
+```
+Make sure you update paths to where you are storing these files.
+```
+```{r}
+#Read in parameters - Described in Table A1 of Abramoff et al. (2021)
+parameters.file <- read.table(here("..","Fortran/MillennialV2/simulationv2/soilpara_in_fit.txt"))
+parameters <- as.list(parameters.file$V2)
+names(parameters) <- parameters.file$V1
+
+#Read in functions
+source(here("simulation/run_functions.R")) #R script that contains calls to run model
+source(here("models/derivs_V2_MM.R")) #The official version of Millennial V2
+
+#Define your path the AfSIS data
+path_to_afsis_data <- here("../../../../../../../..","Documents/AfSIS/afsis_ref_updated5.csv")
+```
+
+#Load AfSIS data
+```{r}
+afsis <- read.csv(path_to_afsis_data)
+```
+
+##Define input data and site-level parameters
+```
+Instead of using the default values from the model tutorial, we will define the input data and site-level parameters using the AfSIS data
+```
+```{r}
+#Select site-level parameters and input data from AfSIS data
+site_params_df <- afsis %>% dplyr::select(param_pH = pH, 
+                                   param_bulkd = bd_extracted, #not grams/cc???
+                                   param_claysilt = Clay_63um, #<63um
+                                   forc_st = SoilTMP_C, 
+                                   forc_sw = SoilMoi_m3m3, 
+                                   forc_npp = NPP.gC.m2.d,
+                                   Latitude = Latitude,
+                                   Longitude = Longitude,
+                                   SSN = SSN) %>% 
+                            mutate(param_bulkd = param_bulkd*10, param_pc = 0.86,
+                                   #porosity = max_sw,
+                                   site_id = row_number()) %>%
+                            na.omit()
+```
+
+##Solve a steady state at different AfSIS sites
+```{r}
+# Function to run model for one row of site parameters
+run_model_for_site <- function(site_row, base_params) {
+  # Copy full parameter list
+  site_params <- as.list(base_params)
+  
+  # Override default site-specific value with values from AfSIS
+  site_params$param_pH       <- as.numeric(site_row$param_pH)
+  site_params$param_bulkd    <- as.numeric(site_row$param_bulkd)
+  site_params$param_pc       <- as.numeric(site_row$param_pc)
+  site_params$param_claysilt <- as.numeric(site_row$param_claysilt)
+    
+# Format input data
+input_for_site <- data.frame(
+  forc_st  = rep(as.numeric(site_row$forc_st), 365),
+  forc_sw  = rep(as.numeric(site_row$forc_sw), 365),
+  forc_npp = rep(as.numeric(site_row$forc_npp), 365),
+  stringsAsFactors = FALSE
+)
+
+# Run the model with an error-catching wrapper
+  result <- tryCatch({
+    Solve_Model(input_for_site, derivs_V2_MM, site_params)
+  }, error = function(e) {
+    warning(paste("Model failed for site:", site_row$site_id, ":", e$message))
+    return(NULL)
+  })
+
+  if (is.null(result)) return(NULL)
+
+  pool_df <- as.data.frame(t(result$y))
+  pool_df$site_id <- site_row$site_id
+  return(pool_df)
+}
+
+# Apply model across all rows of the site parameter dataframe
+results_list <- apply(site_params_df, 1, function(row) {
+  row <- as.list(row)  # Convert row to list for easy referencing
+  run_model_for_site(row, parameters)
+})
+
+# Combine all into one dataframe
+model_outputs_df <- dplyr::bind_rows(results_list)
+model_outputs_df$site_id <- as.integer(model_outputs_df$site_id)
+
+# Merge model outputs with original site parameters if needed
+final_df <- dplyr::left_join(site_params_df, model_outputs_df, by = "site_id")
+
+# View final result
+print(final_df)
+```
+
+##Plot model pools at AfSIS sites
+```{r}
+world <- ne_countries(scale = "medium", returnclass = "sf")
+
+# Filter to African continent using UN region classification
+africa_map <- world %>% filter(region_un == "Africa")
+
+# Crop the extent closer
+africa_bbox <- st_bbox(c(
+  xmin = -20,   # West
+  xmax = 60,    # East
+  ymin = -40,   # South
+  ymax = 40     # North
+), crs = st_crs(africa_map))
+
+# Plot model output
+ggplot(data = africa_map) +
+  geom_sf(fill = "gray90", color = "gray60") +
+  geom_point(data = final_df,  # your dataframe with lat/lon and model output
+             aes(x = Longitude, y = Latitude, color = MAOM), 
+             size = 2) +
+  scale_color_viridis_c(option = "C") +
+  coord_sf(xlim = c(africa_bbox$xmin, africa_bbox$xmax),
+           ylim = c(africa_bbox$ymin, africa_bbox$ymax),
+           expand = FALSE) +
+  theme_minimal() +
+  labs(
+    title = "Model Output Across Africa",
+    x = "Longitude", y = "Latitude",
+    color = "MAOM"
+  )
+```
+
+#Alternative Model Versions
+```
+Make your own model version like in the tutorial. Locate the *derivs_V2_MM.R* function file in the ~YOURPATH/R/models/ directory. Remember that this is the file where the model equations are stored. Save a copy of this file and name it *derivs_V2_DESCRIPTIVE_NAME.R*, and also remember to change the name in the first line of the file where the name of the function is defined.
+
+Try changing Equation 11:
+  param_qmax = parameters$param_bulkd * parameters$param_pc * parameters$param_claysilt 
+
+Try some of the following equations based on empirical relationships derived by our colleagues:
+  param_qmax = 3.66*param_clay
+In order to do this, you will need to add a new parameter above where parameters are being defined called param_clay, and then set this value equal to one of the definitions of clay in the AfSIS dataset (there are several options).
+
+You can also try to incorporate Fe and Al-oxides:
+  param_qmax = 8.48 * (Feo + Alo)
+Important Note: This relationship assumes oxalate-extractable Fe and Al are both in g/kg so you may need to convert if the AfSIS dataset express these values as mg/kg.
+  
+Or an equation which has both:
+  param_qmax = 0.82 * (clay and silt; particles <63um) + 0.99 * (Feo + Alo)
+Again take care of any unit conversion.
+```
+
+

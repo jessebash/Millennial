@@ -22,6 +22,7 @@ install.packages("name_of_package")
 ```
 ```{r}
 library(FME)
+library(here)
 ```
 
 ##Load files needed from the directory
@@ -35,23 +36,23 @@ You will need to import both data and code from elsewhere in the Millennial dire
 * functions
 ```{r}
 #Define YOUR path to the Millennial directory
-rootdir <- "/Users/rzabramoff/Documents/Millennial/"
+rootdir <- here()
 
 #Read in input data - Described in Table A1 of Abramoff et al. (2021)
 ##forc_st: soil temperature in degrees Celcius
 ##forc_sw: volumetric soil moisture in mm3/mm3
 ##forc_npp: daily plant inputs in gC/m2/day
-inputdata <- read.table(paste0(rootdir,"Fortran/MillennialV2/simulationv2/globalaverage.txt"))
+inputdata <- read.table(here("..","Fortran/MillennialV2/simulationv2/globalaverage.txt"))
 names(inputdata) <- c("forc_st","forc_sw","forc_npp") 
 
 #Read in parameters - Described in Table A1 of Abramoff et al. (2021)
-parameters.file <- read.table(paste0(rootdir,"Fortran/MillennialV2/simulationv2/soilpara_in_fit.txt"))
+parameters.file <- read.table(here("..","Fortran/MillennialV2/simulationv2/soilpara_in_fit.txt"))
 parameters <- as.list(parameters.file$V2)
 names(parameters) <- parameters.file$V1
 
 #Read in functions
-source(paste0(rootdir, "R/simulation/run_functions.R")) #R script that contains calls to run model
-source(paste0(rootdir, "R/models/derivs_V2_MM.R")) #The official version of Millennial V2
+source(here("simulation/run_functions.R")) #R script that contains calls to run model
+source(here("models/derivs_V2_MM.R")) #The official version of Millennial V2
 ```
 
 ##Run the model
@@ -146,7 +147,7 @@ f_MB_turn = parameters$rate_bd * MIC#^2.0
 ```
 Now load your new model and plot the difference between this model and default model. Which pool(s) does it affect? Does that make sense to you?
 ```{r}
-source(paste0(rootdir, "R/models/derivs_V2_MYMODEL.R"))
+source(here("models/derivs_V2_MYMODEL.R"))
 #Run the model
 output.my <- Run_Model(inputdata,derivs_V2_MYMODEL,parameters,num.years=10,state=c(POM = 1, LMWC = 1, AGG = 1, MIC = 1, MAOM=1, CO2=0))
 
