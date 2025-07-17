@@ -5,7 +5,7 @@ The Millennial Version 2 description and evaluation paper is published open acce
 
 Abramoff, Rose Z., Bertrand Guenet, Haicheng Zhang, Katerina Georgiou, Xiaofeng Xu, Raphael A. Viscarra Rossel, Wenping Yuan, and Philippe Ciais. "Improved global-scale predictions of soil carbon stocks with Millennial Version 2." Soil Biology and Biochemistry (2021) 164: 108466.
 
-Please contact Rose Abramoff (rose.abramoff@lsce.ipsl.fr) with any questions, issues, comments, inquiries.
+Please contact Rose Abramoff (rose.abramoff@igdore.org) with any questions, issues, comments, inquiries.
 
 The model is organized in folders, first by programming language and then by model version.
 ### Fortran:
@@ -67,3 +67,7 @@ This is a repository for the newly developed Millennial model (version 1.0)
 The Millennial model is a product of the third group of participants for the International Decade of Soils (IDOS) workshop held in Boulder, CO during Mar 14-16. The model was conceived by the entire group including Rose Abramoff, Sarah O'Brien, Eric Davidson, Wenting Feng, Adrien Finzi, Melannie Hartman, Daryl Moorhead, Josh Schimel, Melanie Mayes, and Xiaofeng Xu. The code is created in May - June 2016, by Xiaofeng Xu (xxu@sdsu.edu). The model has been updated with several modifications on processes and parameters during May 2016 - January 2017. 
 
 Contact Xiaofeng Xu for any technical questions or if you want to test this model.
+
+## Notes
+Dec 19, 2024
+Kdes units used in Equations 10 and 12 should be gC/m2/d, and not mgC/L/d.
